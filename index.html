@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logic Simulator Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #f8fafc;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        canvas {
+            cursor: crosshair;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .toast-enter {
+            animation: slideIn 0.3s ease-out forwards;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        #edu-panel {
+            transition: width 0.3s ease, padding 0.3s ease;
+            width: 0;
+            overflow: hidden;
+            padding: 0;
+            border-left: none;
+        }
+        #edu-panel.active {
+            width: 450px;
+            padding: 1.5rem;
+            border-left: 1px solid #334155;
+            overflow-y: auto;
+        }
+        
+        table.kmap { border-collapse: collapse; width: 100%; text-align: center; margin-top: 10px; font-size: 12px; }
+        table.kmap th, table.kmap td { border: 1px solid #475569; padding: 6px; }
+        table.kmap th { background-color: #1e293b; color: #cbd5e1; font-weight: 600; }
+        table.kmap td { background-color: #0f172a; transition: all 0.2s; }
+        table.kmap td.active-cell { background-color: #14532d; color: #4ade80; font-weight: bold; box-shadow: inset 0 0 8px rgba(34, 197, 94, 0.2); }
+
+        table.ttable { border-collapse: collapse; width: 100%; text-align: center; font-size: 12px; }
+        table.ttable th, table.ttable td { border: 1px solid #475569; padding: 6px; }
+        table.ttable th { background-color: #1e293b; color: #94a3b8; }
+        table.ttable tr:nth-child(even) { background-color: #1e293b; }
+    </style>
+</head>
+<body class="flex h-screen w-screen overflow-hidden selection:bg-blue-500/30">
+
+    <aside id="sidebar" class="w-72 bg-slate-900 border-r border-slate-800 flex flex-col z-20 shadow-xl shrink-0 custom-scrollbar overflow-y-auto">
+        <div class="p-4 border-b border-slate-800 bg-slate-950/50">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-slate-100 tracking-tight">Logic Simulator <span class="text-blue-400">Pro</span></h1>
+                    <p class="text-[10px] text-slate-500 font-mono">v1.6.0-ultimate</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 flex-1">
+            <div class="mb-6">
+                <div class="flex gap-2 mb-2">
+                    <button onclick="app.exportCircuit()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors p-2 rounded-lg border border-slate-700 text-sm font-medium shadow-sm flex items-center justify-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        Export
+                    </button>
+                    <button onclick="app.triggerImport()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors p-2 rounded-lg border border-slate-700 text-sm font-medium shadow-sm flex items-center justify-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Import
+                    </button>
+                    <input type="file" id="file-import" accept=".json" class="hidden" onchange="app.importCircuit(event)">
+                </div>
+
+                <div class="mb-2">
+                    <button onclick="app.autoArrange()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors p-2 rounded-lg border border-slate-700 text-sm font-medium shadow-sm flex items-center justify-center gap-1">
+                        ✨ Auto Arrange
+                    </button>
+                </div>
+                
+                <div class="mb-2">
+                    <button onclick="app.saveToPremadeList()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors p-2 rounded-lg border border-slate-700 text-sm font-medium shadow-sm flex items-center justify-center gap-1">
+                        💾 Save to Pre-made List
+                    </button>
+                </div>
+
+                <div class="mb-2">
+                    <select id="premade-select" onchange="app.handlePremadeSelection(this.value); this.value='';" class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg p-2 outline-none focus:border-blue-500 custom-scrollbar cursor-pointer">
+                        <option value="" disabled selected>Load Pre-made Circuit...</option>
+                    </select>
+                    <input type="file" id="collection-import" accept=".json" class="hidden" onchange="app.importPremadeCollection(event)">
+                </div>
+
+                <button onclick="app.clearCanvas()" class="w-full bg-red-900/30 hover:bg-red-800/50 text-red-400 transition-colors p-2 rounded-lg border border-red-900/50 text-sm font-medium mb-2 mt-4">
+                    Clear Canvas
+                </button>
+                <button onclick="app.toggleEduMode()" id="edu-mode-btn" class="w-full bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 transition-colors p-2.5 rounded-lg border border-blue-800/50 text-sm font-medium mt-2 mb-2 flex items-center justify-center gap-2 shadow-sm">
+                    🎓 Educational Mode: OFF
+                </button>
+            </div>
+
+            <div class="mb-6">
+                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Components</h2>
+                
+                <details open class="mb-2 group border border-slate-700 rounded bg-slate-800/30">
+                    <summary class="cursor-pointer text-sm font-medium p-2 bg-slate-800 hover:bg-slate-700 select-none flex justify-between items-center">I/O Components <span class="text-slate-500 text-xs">▼</span></summary>
+                    <div class="grid grid-cols-2 gap-2 p-2">
+                        <button onclick="app.addNode('INPUT')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">Input (Switch)</button>
+                        <button onclick="app.addNode('OUTPUT')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">Output (LED)</button>
+                    </div>
+                </details>
+
+                <details class="mb-2 group border border-slate-700 rounded bg-slate-800/30">
+                    <summary class="cursor-pointer text-sm font-medium p-2 bg-slate-800 hover:bg-slate-700 select-none flex justify-between items-center">Basic Gates <span class="text-slate-500 text-xs">▼</span></summary>
+                    <div class="grid grid-cols-2 gap-2 p-2">
+                        <button onclick="app.addNode('AND')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">AND Gate</button>
+                        <button onclick="app.addNode('OR')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">OR Gate</button>
+                        <button onclick="app.addNode('NOT')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">NOT Gate</button>
+                        <button onclick="app.addNode('BUFFER')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">BUFFER</button>
+                    </div>
+                </details>
+
+                <details class="mb-2 group border border-slate-700 rounded bg-slate-800/30">
+                    <summary class="cursor-pointer text-sm font-medium p-2 bg-slate-800 hover:bg-slate-700 select-none flex justify-between items-center">Universal Gates <span class="text-slate-500 text-xs">▼</span></summary>
+                    <div class="grid grid-cols-2 gap-2 p-2">
+                        <button onclick="app.addNode('NAND')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">NAND Gate</button>
+                        <button onclick="app.addNode('NOR')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">NOR Gate</button>
+                    </div>
+                </details>
+                
+                <details class="mb-2 group border border-slate-700 rounded bg-slate-800/30">
+                    <summary class="cursor-pointer text-sm font-medium p-2 bg-slate-800 hover:bg-slate-700 select-none flex justify-between items-center">Derived Gates <span class="text-slate-500 text-xs">▼</span></summary>
+                    <div class="grid grid-cols-2 gap-2 p-2">
+                        <button onclick="app.addNode('XOR')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">XOR Gate</button>
+                        <button onclick="app.addNode('XNOR')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2 rounded text-sm text-center transition-colors shadow-sm">XNOR Gate</button>
+                    </div>
+                </details>
+
+                <p class="text-[11px] text-slate-500 mt-3 italic bg-slate-800/50 p-2 rounded border border-slate-700/50">Tip: Double-click an Input node on the canvas to toggle its state (0/1).</p>
+            </div>
+
+            <div>
+                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Properties</h2>
+                <div id="inspector-content" class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 min-h-[150px] text-sm text-slate-400">
+                    Select a node to inspect.
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 relative bg-slate-950 overflow-hidden" id="canvas-container">
+        <!-- The actual drawing surface -->
+        <canvas id="sim-canvas"></canvas>
+
+        <!-- UI Overlays -->
+        <div class="absolute top-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none">
+            <h3 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Controls</h3>
+            <ul class="text-[11px] text-slate-500 space-y-1 font-mono">
+                <li><span class="text-slate-300">Pan:</span> Click & Drag Background</li>
+                <li><span class="text-slate-300">Zoom:</span> Mouse Wheel</li>
+                <li><span class="text-slate-300">Move Node:</span> Click & Drag Node</li>
+                <li><span class="text-slate-300">Wire:</span> Drag Output to Input</li>
+                <li><span class="text-slate-300">Delete:</span> Select Node & Press DEL</li>
+                <li><span class="text-slate-300">Toggle Input:</span> Double-Click Input Node</li>
+            </ul>
+        </div>
+
+        <div class="absolute top-4 right-4 bg-slate-900/80 backdrop-blur border border-slate-700 p-2 rounded shadow-lg flex items-center gap-4 text-xs font-mono text-slate-400 pointer-events-none">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]" id="status-indicator"></span>
+                Engine: <span id="fps-counter" class="text-white">60 FPS</span>
+            </div>
+        </div>
+    </main>
+
+    <aside id="edu-panel" class="bg-slate-900 flex flex-col z-20 shadow-2xl shrink-0 overflow-y-auto custom-scrollbar relative">
+        <h2 class="font-bold text-lg text-blue-400 mb-4 border-b border-slate-700 pb-3 flex items-center gap-2 sticky top-0 bg-slate-900 z-10 pt-4 px-1">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+            Educational Analysis
+        </h2>
+        
+        <div id="edu-content" class="flex-1 pb-10 px-1">
+            <p class="text-sm text-slate-400 italic">Toggle inputs or add components to see real-time analysis.</p>
+        </div>
+    </aside>
+
+    <script>
+
+        class BaseNode {
+            constructor(type, inputCount = 1, outputCount = 1) {
+                this.id = 'node_' + Math.random().toString(36).substr(2, 9);
+                this.type = type;
+                this.x = 0;
+                this.y = 0;
+                this.width = 80;
+                this.height = Math.max(40, Math.max(inputCount, outputCount) * 20 + 20);
+                
+                this.inputCount = inputCount;
+                this.outputCount = outputCount;
+                
+                this.inputs = Array(inputCount).fill(null); // null = floating (0)
+                this.outputs = Array(outputCount).fill(0);
+                
+                this.designator = ''; // e.g., "Input A"
+                this.label = ''; // e.g., "Handbrake"
+            }
+
+            receiveInput(portIndex, value) {
+                if (portIndex >= 0 && portIndex < this.inputs.length) {
+                    this.inputs[portIndex] = value;
+                    return this.evaluate();
+                }
+                return false;
+            }
+            
+            evaluate() { return false; }
+        }
+
+        class InputNode extends BaseNode {
+            constructor() { 
+                super('INPUT', 0, 1); 
+                this.width = 60; this.height = 40;
+                this.outputs[0] = 0;
+            }
+            toggle() {
+                this.outputs[0] = this.outputs[0] === 1 ? 0 : 1;
+                return true;
+            }
+        }
+
+        class OutputNode extends BaseNode {
+            constructor() { 
+                super('OUTPUT', 1, 0); 
+                this.width = 60; this.height = 40;
+                this.currentValue = 0;
+            }
+            evaluate() {
+                const newVal = this.inputs[0] === 1 ? 1 : 0;
+                if (this.currentValue !== newVal) {
+                    this.currentValue = newVal;
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        class AndGate extends BaseNode {
+            constructor() { super('AND', 2, 1); }
+            evaluate() {
+                const isHigh = this.inputs.length > 0 && this.inputs.every(val => val === 1);
+                const newVal = isHigh ? 1 : 0;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+
+        class OrGate extends BaseNode {
+            constructor() { super('OR', 2, 1); }
+            evaluate() {
+                const isHigh = this.inputs.some(val => val === 1);
+                const newVal = isHigh ? 1 : 0;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+
+        class NotGate extends BaseNode {
+            constructor() { super('NOT', 1, 1); }
+            evaluate() {
+                const newVal = this.inputs[0] === 1 ? 0 : 1;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+
+        class XorGate extends BaseNode {
+            constructor() { super('XOR', 2, 1); }
+            evaluate() {
+                const sum = this.inputs.reduce((a,b) => (a||0)+(b||0), 0);
+                const newVal = sum === 1 ? 1 : 0;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+
+        class NandGate extends BaseNode {
+            constructor() { super('NAND', 2, 1); }
+            evaluate() {
+                const newVal = (this.inputs.length > 0 && this.inputs.every(v => v === 1)) ? 0 : 1;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+
+        class NorGate extends BaseNode {
+            constructor() { super('NOR', 2, 1); }
+            evaluate() {
+                const newVal = this.inputs.some(v => v === 1) ? 0 : 1;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+
+        class XnorGate extends BaseNode {
+            constructor() { super('XNOR', 2, 1); }
+            evaluate() {
+                const sum = this.inputs.reduce((a,b) => (a||0)+(b||0), 0);
+                const newVal = sum === 1 ? 0 : 1;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+        
+        class BufferGate extends BaseNode {
+            constructor() { super('BUFFER', 1, 1); }
+            evaluate() {
+                const newVal = this.inputs[0] === 1 ? 1 : 0;
+                if (this.outputs[0] !== newVal) { this.outputs[0] = newVal; return true; }
+                return false;
+            }
+        }
+
+        class Engine {
+            constructor() {
+                this.nodes = new Map();
+                this.adjacencyList = new Map(); // sourceId -> [{ targetNodeId, targetPortIndex, sourcePortIndex }]
+                this.evaluationQueue = [];
+                this.onUpdate = null; // Callback for UI
+            }
+
+            addNode(type) {
+                let node;
+                switch(type) {
+                    case 'INPUT': node = new InputNode(); break;
+                    case 'OUTPUT': node = new OutputNode(); break;
+                    case 'AND': node = new AndGate(); break;
+                    case 'OR': node = new OrGate(); break;
+                    case 'NOT': node = new NotGate(); break;
+                    case 'XOR': node = new XorGate(); break;
+                    case 'NAND': node = new NandGate(); break;
+                    case 'NOR': node = new NorGate(); break;
+                    case 'XNOR': node = new XnorGate(); break;
+                    case 'BUFFER': node = new BufferGate(); break;
+                    default: return null;
+                }
+                this.nodes.set(node.id, node);
+                this.adjacencyList.set(node.id, []);
+                this.triggerUpdate();
+                return node;
+            }
+
+            removeNode(nodeId) {
+                this.nodes.delete(nodeId);
+                this.adjacencyList.delete(nodeId);
+                // Remove incoming edges
+                for (let [sourceId, edges] of this.adjacencyList.entries()) {
+                    const filtered = edges.filter(e => e.targetNodeId !== nodeId);
+                    this.adjacencyList.set(sourceId, filtered);
+                }
+                this.triggerUpdate();
+            }
+
+            addEdge(sourceId, sourcePort, targetId, targetPort) {
+                // Prevent duplicate edges on same target port (replace instead)
+                this.removeEdgeByTarget(targetId, targetPort);
+
+                const edges = this.adjacencyList.get(sourceId);
+                if (edges) {
+                    edges.push({ targetNodeId: targetId, targetPortIndex: targetPort, sourcePortIndex: sourcePort });
+                    this.enqueuePropagation(sourceId);
+                    this.propagate();
+                    this.triggerUpdate();
+                }
+            }
+
+            removeEdge(sourceId, targetId, targetPort) {
+                const edges = this.adjacencyList.get(sourceId);
+                if (edges) {
+                    this.adjacencyList.set(sourceId, edges.filter(e => !(e.targetNodeId === targetId && e.targetPortIndex === targetPort)));
+                    // Reset target port
+                    const targetNode = this.nodes.get(targetId);
+                    if(targetNode) {
+                        targetNode.receiveInput(targetPort, null);
+                        this.enqueuePropagation(targetId);
+                        this.propagate();
+                    }
+                    this.triggerUpdate();
+                }
+            }
+
+            removeEdgeByTarget(targetId, targetPort) {
+                for (let [sourceId, edges] of this.adjacencyList.entries()) {
+                    const edgeIndex = edges.findIndex(e => e.targetNodeId === targetId && e.targetPortIndex === targetPort);
+                    if (edgeIndex > -1) {
+                        this.removeEdge(sourceId, targetId, targetPort);
+                    }
+                }
+            }
+
+            toggleInput(nodeId) {
+                const node = this.nodes.get(nodeId);
+                if (node && node.type === 'INPUT') {
+                    if (node.toggle()) {
+                        this.enqueuePropagation(nodeId);
+                        this.propagate();
+                        this.triggerUpdate();
+                    }
+                }
+            }
+
+            enqueuePropagation(sourceId) {
+                const edges = this.adjacencyList.get(sourceId);
+                const sourceNode = this.nodes.get(sourceId);
+                if (edges && sourceNode) {
+                    edges.forEach(e => {
+                        this.evaluationQueue.push({
+                            targetId: e.targetNodeId,
+                            targetPort: e.targetPortIndex,
+                            value: sourceNode.outputs[e.sourcePortIndex]
+                        });
+                    });
+                }
+            }
+
+            propagate() {
+                let limit = 1000;
+                while (this.evaluationQueue.length > 0 && limit-- > 0) {
+                    const task = this.evaluationQueue.shift();
+                    const targetNode = this.nodes.get(task.targetId);
+                    if (targetNode) {
+                        const changed = targetNode.receiveInput(task.targetPort, task.value);
+                        if (changed) this.enqueuePropagation(targetNode.id);
+                    }
+                }
+                if (limit <= 0) console.warn("Propagation limit reached! Check for feedback loops.");
+            }
+
+            triggerUpdate() {
+                if (this.onUpdate) this.onUpdate();
+            }
+        }
+
+        class AppRenderer {
+            constructor() {
+                this.engine = new Engine();
+                this.canvas = document.getElementById('sim-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // View State
+                this.transform = d3.zoomIdentity;
+                this.selectedNodeId = null;
+                
+                // Wiring State
+                this.wiringMode = false;
+                this.wiringStart = null; 
+                this.mouseWorldPos = { x: 0, y: 0 };
+                
+                // Educational Mode
+                this.eduMode = false;
+                
+                // Pre-made Circuits Storage (Default + Custom via LocalStorage)
+                this.defaultPremades = {
+                    half_adder: { name: "Half Adder", data: {"nodes":[{"id":"A","type":"INPUT","x":100,"y":100,"designator":"Input A","label":"Bit 1","inputCount":0,"outputCount":1,"state":0},{"id":"B","type":"INPUT","x":100,"y":200,"designator":"Input B","label":"Bit 2","inputCount":0,"outputCount":1,"state":0},{"id":"xor","type":"XOR","x":300,"y":100,"designator":"XOR Gate","label":"","inputCount":2,"outputCount":1,"state":0},{"id":"and","type":"AND","x":300,"y":200,"designator":"AND Gate","label":"","inputCount":2,"outputCount":1,"state":0},{"id":"Sum","type":"OUTPUT","x":500,"y":100,"designator":"Output 1","label":"Sum","inputCount":1,"outputCount":0,"state":0},{"id":"Carry","type":"OUTPUT","x":500,"y":200,"designator":"Output 2","label":"Carry Out","inputCount":1,"outputCount":0,"state":0}],"edges":[{"sourceId":"A","sourcePort":0,"targetId":"xor","targetPort":0},{"sourceId":"A","sourcePort":0,"targetId":"and","targetPort":0},{"sourceId":"B","sourcePort":0,"targetId":"xor","targetPort":1},{"sourceId":"B","sourcePort":0,"targetId":"and","targetPort":1},{"sourceId":"xor","sourcePort":0,"targetId":"Sum","targetPort":0},{"sourceId":"and","sourcePort":0,"targetId":"Carry","targetPort":0}]} },
+                    sr_latch: { name: "SR Latch (NOR-based)", data: {"nodes":[{"id":"S","type":"INPUT","x":100,"y":100,"designator":"Input S","label":"Set","inputCount":0,"outputCount":1,"state":0},{"id":"R","type":"INPUT","x":100,"y":250,"designator":"Input R","label":"Reset","inputCount":0,"outputCount":1,"state":0},{"id":"nor1","type":"NOR","x":300,"y":100,"designator":"NOR 1","label":"","inputCount":2,"outputCount":1,"state":0},{"id":"nor2","type":"NOR","x":300,"y":250,"designator":"NOR 2","label":"","inputCount":2,"outputCount":1,"state":0},{"id":"Q","type":"OUTPUT","x":500,"y":100,"designator":"Output Q","label":"","inputCount":1,"outputCount":0,"state":0},{"id":"Qbar","type":"OUTPUT","x":500,"y":250,"designator":"Output Q'","label":"","inputCount":1,"outputCount":0,"state":0}],"edges":[{"sourceId":"S","sourcePort":0,"targetId":"nor1","targetPort":0},{"sourceId":"R","sourcePort":0,"targetId":"nor2","targetPort":1},{"sourceId":"nor1","sourcePort":0,"targetId":"nor2","targetPort":0},{"sourceId":"nor2","sourcePort":0,"targetId":"nor1","targetPort":1},{"sourceId":"nor1","sourcePort":0,"targetId":"Q","targetPort":0},{"sourceId":"nor2","sourcePort":0,"targetId":"Qbar","targetPort":0}]} },
+                    and_from_nand: { name: "AND from NANDs", data: {"nodes":[{"id":"A","type":"INPUT","x":100,"y":100,"designator":"Input A","label":"","inputCount":0,"outputCount":1,"state":0},{"id":"B","type":"INPUT","x":100,"y":200,"designator":"Input B","label":"","inputCount":0,"outputCount":1,"state":0},{"id":"nand1","type":"NAND","x":250,"y":150,"designator":"NAND 1","label":"","inputCount":2,"outputCount":1,"state":0},{"id":"nand2","type":"NAND","x":400,"y":150,"designator":"NAND 2 (Inv)","label":"","inputCount":2,"outputCount":1,"state":0},{"id":"Out","type":"OUTPUT","x":600,"y":150,"designator":"Output 1","label":"A AND B","inputCount":1,"outputCount":0,"state":0}],"edges":[{"sourceId":"A","sourcePort":0,"targetId":"nand1","targetPort":0},{"sourceId":"B","sourcePort":0,"targetId":"nand1","targetPort":1},{"sourceId":"nand1","sourcePort":0,"targetId":"nand2","targetPort":0},{"sourceId":"nand1","sourcePort":0,"targetId":"nand2","targetPort":1},{"sourceId":"nand2","sourcePort":0,"targetId":"Out","targetPort":0}]} }
+                };
+                
+                try {
+                    this.customPremades = JSON.parse(localStorage.getItem('logic_sim_custom_premades')) || {};
+                } catch(e) {
+                    this.customPremades = {};
+                }
+                
+                // Loop setup
+                this.lastTime = 0;
+                this.frames = 0;
+                
+                this.engine.onUpdate = () => {
+                    this.updateInspector();
+                    if(this.eduMode) this.updateEduPanel();
+                };
+                
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+
+                this.setupEvents();
+
+                const zoom = d3.zoom()
+                    .scaleExtent([0.1, 4])
+                    .on('zoom', (e) => {
+                        this.transform = e.transform;
+                    });
+                
+                const selection = d3.select(this.canvas).call(zoom);
+                selection.on("dblclick.zoom", null); // Prevent zoom on toggle
+
+                this.updatePremadeDropdown();
+
+                requestAnimationFrame((t) => this.renderLoop(t));
+            }
+
+            resize() {
+                const container = document.getElementById('canvas-container');
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+            }
+
+            addNode(type) {
+                const node = this.engine.addNode(type);
+                
+                // Set the mathematical Designator (A, B, C...) separately from the Label
+                if (type === 'INPUT') {
+                    const inputs = Array.from(this.engine.nodes.values()).filter(n => n.type === 'INPUT');
+                    node.designator = 'Input ' + String.fromCharCode(64 + inputs.length); // Input A, Input B...
+                } else if (type === 'OUTPUT') {
+                    const outputs = Array.from(this.engine.nodes.values()).filter(n => n.type === 'OUTPUT');
+                    node.designator = 'Output ' + outputs.length; // Output 1, Output 2...
+                } else {
+                    node.designator = type + ' Gate';
+                }
+
+                this.recalculateNodeSize(node);
+
+                // Place it in center of current view
+                const rect = this.canvas.getBoundingClientRect();
+                node.x = (rect.width/2 - this.transform.x) / this.transform.k;
+                node.y = (rect.height/2 - this.transform.y) / this.transform.k;
+                this.selectNode(node.id);
+            }
+
+            clearCanvas() {
+                this.engine = new Engine();
+                this.engine.onUpdate = () => {
+                    this.updateInspector();
+                    if(this.eduMode) this.updateEduPanel();
+                };
+                this.selectedNodeId = null;
+                this.engine.triggerUpdate();
+            }
+
+            getCircuitData() {
+                const data = { nodes: [], edges: [] };
+                
+                for (const node of this.engine.nodes.values()) {
+                    data.nodes.push({
+                        id: node.id, type: node.type, x: node.x, y: node.y,
+                        designator: node.designator, label: node.label,
+                        inputCount: node.inputCount, outputCount: node.outputCount,
+                        state: node.type === 'INPUT' ? node.outputs[0] : 0
+                    });
+                }
+                
+                for (const [sourceId, edges] of this.engine.adjacencyList.entries()) {
+                    for (const edge of edges) {
+                        data.edges.push({
+                            sourceId: sourceId, sourcePort: edge.sourcePortIndex,
+                            targetId: edge.targetNodeId, targetPort: edge.targetPortIndex
+                        });
+                    }
+                }
+                return data;
+            }
+
+            exportCircuit() {
+                const data = this.getCircuitData();
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `logic_circuit_${new Date().getTime()}.json`; a.click();
+                URL.revokeObjectURL(url);
+                this.showToast("Circuit exported successfully!");
+            }
+
+            showToast(message, type = 'success') {
+                const toast = document.createElement('div');
+                toast.className = `fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-xl text-sm font-medium toast-enter z-50 flex items-center gap-2 ${type === 'error' ? 'bg-red-900/90 text-red-200 border border-red-700' : 'bg-slate-800 border border-slate-600 text-green-400'}`;
+                toast.innerHTML = type === 'error' 
+                    ? `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ${message}` 
+                    : `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> ${message}`;
+                document.body.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    toast.style.transition = 'all 0.3s ease-in';
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+
+            showInputModal(title, placeholder, callback) {
+                const overlay = document.createElement('div');
+                overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center';
+                
+                const modal = document.createElement('div');
+                modal.className = 'bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 w-96 transform scale-95 transition-transform duration-100';
+                setTimeout(() => modal.classList.replace('scale-95', 'scale-100'), 10);
+                
+                modal.innerHTML = `
+                    <h3 class="text-slate-100 font-bold mb-4 text-lg flex items-center gap-2"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>${title}</h3>
+                    <input type="text" id="modal-input" placeholder="${placeholder}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-200 outline-none focus:border-blue-500 mb-5 shadow-inner" autocomplete="off"/>
+                    <div class="flex justify-end gap-2">
+                        <button id="modal-cancel" class="px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 transition-colors text-sm font-medium">Cancel</button>
+                        <button id="modal-confirm" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors text-sm font-medium shadow-lg shadow-blue-500/20">Save</button>
+                    </div>
+                `;
+                
+                overlay.appendChild(modal);
+                document.body.appendChild(overlay);
+                
+                const input = overlay.querySelector('#modal-input');
+                input.focus();
+                
+                const close = () => {
+                    modal.classList.replace('scale-100', 'scale-95');
+                    overlay.style.opacity = '0';
+                    overlay.style.transition = 'all 0.15s ease';
+                    setTimeout(() => overlay.remove(), 150);
+                };
+                
+                overlay.querySelector('#modal-cancel').onclick = close;
+                overlay.querySelector('#modal-confirm').onclick = () => {
+                    const val = input.value.trim();
+                    if (val) { callback(val); close(); }
+                };
+                
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        const val = input.value.trim();
+                        if (val) { callback(val); close(); }
+                    } else if (e.key === 'Escape') {
+                        close();
+                    }
+                });
+            }
+
+            triggerImport() { document.getElementById('file-import').click(); }
+
+            importCircuit(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        this.loadJSON(JSON.parse(e.target.result));
+                        this.showToast("Circuit imported successfully!");
+                        event.target.value = ''; 
+                    } catch (err) { this.showToast("Invalid or corrupted JSON file.", "error"); }
+                };
+                reader.readAsText(file);
+            }
+
+            loadJSON(data) {
+                this.clearCanvas();
+                
+                data.nodes.forEach(nData => {
+                    let node;
+                    switch(nData.type) {
+                        case 'INPUT': node = new InputNode(); break;
+                        case 'OUTPUT': node = new OutputNode(); break;
+                        case 'AND': node = new AndGate(); break;
+                        case 'OR': node = new OrGate(); break;
+                        case 'NOT': node = new NotGate(); break;
+                        case 'XOR': node = new XorGate(); break;
+                        case 'NAND': node = new NandGate(); break;
+                        case 'NOR': node = new NorGate(); break;
+                        case 'XNOR': node = new XnorGate(); break;
+                        case 'BUFFER': node = new BufferGate(); break;
+                    }
+                    if (node) {
+                        node.id = nData.id; node.x = nData.x; node.y = nData.y; 
+                        node.designator = nData.designator || nData.type;
+                        node.label = nData.label || '';
+                        
+                        if (nData.inputCount) {
+                            node.inputCount = nData.inputCount;
+                            node.inputs = Array(node.inputCount).fill(null);
+                        }
+                        if (nData.outputCount) node.outputCount = nData.outputCount;
+                        if (node.type === 'INPUT' && nData.state !== undefined) node.outputs[0] = nData.state;
+                        
+                        this.engine.nodes.set(node.id, node);
+                        this.engine.adjacencyList.set(node.id, []);
+                        this.recalculateNodeSize(node);
+                    }
+                });
+
+                data.edges.forEach(eData => {
+                    this.engine.addEdge(eData.sourceId, eData.sourcePort, eData.targetId, eData.targetPort);
+                });
+                
+                Array.from(this.engine.nodes.values()).filter(n => n.type === 'INPUT').forEach(inp => {
+                    this.engine.enqueuePropagation(inp.id);
+                });
+                this.engine.propagate();
+                this.selectNode(null);
+            }
+
+            updatePremadeDropdown() {
+                const select = document.getElementById('premade-select');
+                if (!select) return;
+                
+                let html = '<option value="" disabled selected>Load Pre-made Circuit...</option>';
+                
+                html += '<optgroup label="Built-in Circuits">';
+                for (const [key, val] of Object.entries(this.defaultPremades)) {
+                    html += `<option value="default_${key}">${val.name}</option>`;
+                }
+                html += '</optgroup>';
+
+                if (Object.keys(this.customPremades).length > 0) {
+                    html += '<optgroup label="My Custom Circuits">';
+                    for (const [key, val] of Object.entries(this.customPremades)) {
+                        html += `<option value="custom_${key}">${val.name}</option>`;
+                    }
+                    html += '</optgroup>';
+                }
+                
+                html += '<optgroup label="Manage Collections">';
+                html += '<option value="import_collection">📁 Load JSON Collection...</option>';
+                html += '<option value="export_collection">📤 Export Custom Collection...</option>';
+                html += '</optgroup>';
+
+                select.innerHTML = html;
+            }
+
+            handlePremadeSelection(value) {
+                if (!value) return;
+                
+                if (value === 'import_collection') {
+                    document.getElementById('collection-import').click();
+                    return;
+                }
+
+                if (value === 'export_collection') {
+                    this.exportPremadeCollection();
+                    return;
+                }
+                
+                let circuitData = null;
+                if (value.startsWith('default_')) {
+                    const key = value.replace('default_', '');
+                    if (this.defaultPremades[key]) circuitData = this.defaultPremades[key].data;
+                } else if (value.startsWith('custom_')) {
+                    const key = value.replace('custom_', '');
+                    if (this.customPremades[key]) circuitData = this.customPremades[key].data;
+                }
+                
+                if (circuitData) {
+                    this.loadJSON(circuitData);
+                    this.showToast("Circuit loaded successfully!");
+                }
+            }
+
+            saveToPremadeList() {
+                this.showInputModal("Save Custom Circuit", "Enter a name for this custom pre-made circuit:", (name) => {
+                    const id = Date.now().toString();
+                    const data = this.getCircuitData();
+                    
+                    this.customPremades[id] = { name: name.trim(), data: data };
+                    try {
+                        localStorage.setItem('logic_sim_custom_premades', JSON.stringify(this.customPremades));
+                        this.showToast(`"${name.trim()}" saved to Custom Circuits!`);
+                    } catch(e) { 
+                        this.showToast("Local storage disabled. Save is temporary.", "error"); 
+                    }
+                    
+                    this.updatePremadeDropdown();
+                });
+            }
+
+            exportPremadeCollection() {
+                if (Object.keys(this.customPremades).length === 0) {
+                    this.showToast("Your Custom Circuits list is empty.", "error");
+                    return;
+                }
+                const blob = new Blob([JSON.stringify(this.customPremades, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `logic_collection_${new Date().getTime()}.json`; a.click();
+                URL.revokeObjectURL(url);
+                this.showToast("Collection exported successfully!");
+            }
+
+            importPremadeCollection(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        let added = 0;
+                        
+                        const processImport = (overrideName) => {
+                            if (parsed.nodes && Array.isArray(parsed.nodes)) {
+                                this.customPremades[Date.now().toString()] = { name: overrideName, data: parsed };
+                                added++;
+                            } else {
+                                for (const key in parsed) {
+                                    const item = parsed[key];
+                                    if (item.nodes && Array.isArray(item.nodes)) {
+                                        this.customPremades[Math.random().toString(36).substr(2, 9)] = { name: key, data: item };
+                                        added++;
+                                    } else if (item.data && item.data.nodes) {
+                                        this.customPremades[Math.random().toString(36).substr(2, 9)] = { name: item.name || key, data: item.data };
+                                        added++;
+                                    }
+                                }
+                            }
+                            
+                            if (added > 0) {
+                                try { localStorage.setItem('logic_sim_custom_premades', JSON.stringify(this.customPremades)); } catch(e){}
+                                this.updatePremadeDropdown();
+                                this.showToast(`Imported ${added} circuit(s) successfully!`);
+                            } else {
+                                this.showToast("No valid logic circuits found in JSON file.", "error");
+                            }
+                            event.target.value = ''; 
+                        };
+
+                        if (parsed.nodes && Array.isArray(parsed.nodes)) {
+                            this.showInputModal("Import Circuit", "Name for this imported circuit:", (name) => processImport(name));
+                        } else {
+                            processImport("");
+                        }
+                    } catch (err) { this.showToast("Invalid or corrupted JSON file.", "error"); }
+                };
+                reader.readAsText(file);
+            }
+
+            autoArrange() {
+                const layers = new Map();
+                this.engine.nodes.forEach((n, id) => layers.set(id, 0));
+                
+                let changed = true, limit = 1000;
+                while(changed && limit-- > 0) {
+                    changed = false;
+                    this.engine.adjacencyList.forEach((edges, sourceId) => {
+                        const sourceLayer = layers.get(sourceId);
+                        edges.forEach(e => {
+                            if (layers.get(e.targetNodeId) <= sourceLayer) {
+                                layers.set(e.targetNodeId, sourceLayer + 1);
+                                changed = true;
+                            }
+                        });
+                    });
+                }
+
+                const layerGroups = [];
+                layers.forEach((layerIndex, nodeId) => {
+                    if (!layerGroups[layerIndex]) layerGroups[layerIndex] = [];
+                    layerGroups[layerIndex].push(nodeId);
+                });
+
+                const cx = (this.canvas.width / 2 - this.transform.x) / this.transform.k;
+                const cy = (this.canvas.height / 2 - this.transform.y) / this.transform.k;
+                
+                const layerSpacing = 220; 
+                const nodeSpacing = 140; 
+                const totalWidth = (layerGroups.length - 1) * layerSpacing;
+                const startX = cx - (totalWidth / 2);
+
+                layerGroups.forEach((group, layerIdx) => {
+                    if(!group) return;
+                    const totalHeight = (group.length - 1) * nodeSpacing;
+                    let currentY = cy - (totalHeight / 2);
+                    
+                    group.forEach(nodeId => {
+                        const node = this.engine.nodes.get(nodeId);
+                        node.x = startX + (layerIdx * layerSpacing);
+                        node.y = currentY;
+                        currentY += nodeSpacing;
+                    });
+                });
+                this.engine.triggerUpdate();
+            }
+
+            setupEvents() {
+                let dragStartPos = null;
+                let draggingNode = false;
+
+                const getEventPos = (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    return {
+                        x: (e.clientX - rect.left - this.transform.x) / this.transform.k,
+                        y: (e.clientY - rect.top - this.transform.y) / this.transform.k
+                    };
+                };
+
+                this.canvas.addEventListener('mousedown', (e) => {
+                    if(e.button !== 0) return; 
+                    
+                    const pos = getEventPos(e);
+                    const hit = this.hitTest(pos.x, pos.y);
+
+                    if (hit) {
+                        e.stopImmediatePropagation(); 
+                        if (hit.type === 'port') {
+                            this.wiringMode = true;
+                            this.wiringStart = hit;
+                        } else if (hit.type === 'node') {
+                            this.selectNode(hit.node.id);
+                            draggingNode = true;
+                            dragStartPos = { offsetX: pos.x - hit.node.x, offsetY: pos.y - hit.node.y };
+                        }
+                    } else {
+                        this.selectNode(null);
+                    }
+                });
+
+                this.canvas.addEventListener('mousemove', (e) => {
+                    this.mouseWorldPos = getEventPos(e);
+                    
+                    if (draggingNode && this.selectedNodeId) {
+                        const node = this.engine.nodes.get(this.selectedNodeId);
+                        node.x = this.mouseWorldPos.x - dragStartPos.offsetX;
+                        node.y = this.mouseWorldPos.y - dragStartPos.offsetY;
+                    }
+                });
+
+                window.addEventListener('mouseup', (e) => {
+                    if (this.wiringMode && this.wiringStart) {
+                        const pos = getEventPos(e);
+                        const hit = this.hitTest(pos.x, pos.y);
+                        
+                        if (hit && hit.type === 'port' && hit.node.id !== this.wiringStart.node.id) {
+                            if (this.wiringStart.isOutput && !hit.isOutput) {
+                                this.engine.addEdge(this.wiringStart.node.id, this.wiringStart.portIndex, hit.node.id, hit.portIndex);
+                            } else if (!this.wiringStart.isOutput && hit.isOutput) {
+                                this.engine.addEdge(hit.node.id, hit.portIndex, this.wiringStart.node.id, this.wiringStart.portIndex);
+                            }
+                        }
+                    }
+                    this.wiringMode = false;
+                    this.wiringStart = null;
+                    draggingNode = false;
+                });
+
+                this.canvas.addEventListener('dblclick', (e) => {
+                    const pos = getEventPos(e);
+                    const hit = this.hitTest(pos.x, pos.y);
+                    if (hit && hit.type === 'node' && hit.node.type === 'INPUT') {
+                        this.engine.toggleInput(hit.node.id);
+                    }
+                });
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                    if (e.key === 'Delete' || e.key === 'Backspace') {
+                        this.deleteSelectedNode();
+                    }
+                });
+            }
+
+            deleteSelectedNode() {
+                if (this.selectedNodeId) {
+                    this.engine.removeNode(this.selectedNodeId);
+                    this.selectedNodeId = null;
+                    this.updateInspector();
+                    if(this.eduMode) this.updateEduPanel();
+                }
+            }
+
+            hitTest(x, y) {
+                const nodes = Array.from(this.engine.nodes.values()).reverse();
+                const HIT_RADIUS = 15;
+
+                for (let node of nodes) {
+                    for (let i = 0; i < node.inputCount; i++) {
+                        const px = node.x;
+                        const py = node.y + (node.height / (node.inputCount + 1)) * (i + 1);
+                        if (Math.hypot(x - px, y - py) < HIT_RADIUS) {
+                            return { type: 'port', node: node, portIndex: i, isOutput: false, x: px, y: py };
+                        }
+                    }
+                    for (let i = 0; i < node.outputCount; i++) {
+                        const px = node.x + node.width;
+                        const py = node.y + (node.height / (node.outputCount + 1)) * (i + 1);
+                        if (Math.hypot(x - px, y - py) < HIT_RADIUS) {
+                            return { type: 'port', node: node, portIndex: i, isOutput: true, x: px, y: py };
+                        }
+                    }
+
+                    if (x >= node.x && x <= node.x + node.width && y >= node.y && y <= node.y + node.height) {
+                        return { type: 'node', node: node };
+                    }
+                }
+                return null;
+            }
+
+            selectNode(id) {
+                this.selectedNodeId = id;
+                this.updateInspector();
+                if(this.eduMode) this.updateEduPanel();
+            }
+
+            toggleEduMode() {
+                this.eduMode = !this.eduMode;
+                const panel = document.getElementById('edu-panel');
+                const btn = document.getElementById('edu-mode-btn');
+                
+                if (this.eduMode) {
+                    panel.classList.add('active');
+                    btn.innerHTML = '🎓 Educational Mode: ON';
+                    btn.classList.replace('bg-blue-900/40', 'bg-blue-600');
+                    this.updateEduPanel();
+                } else {
+                    panel.classList.remove('active');
+                    btn.innerHTML = '🎓 Educational Mode: OFF';
+                    btn.classList.replace('bg-blue-600', 'bg-blue-900/40');
+                }
+                
+                setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 300);
+            }
+
+            getGateExplanation(type) {
+                const expl = {
+                    'INPUT': 'Provides a binary signal (0 or 1) to the circuit. Double-click to toggle.',
+                    'OUTPUT': 'Displays the final binary result of the logic circuit.',
+                    'AND': 'Outputs 1 ONLY if ALL inputs are 1. Otherwise outputs 0. (Multiplication)',
+                    'OR': 'Outputs 1 if AT LEAST ONE input is 1. Outputs 0 if all are 0. (Addition)',
+                    'NOT': 'Inverts the input signal. 1 becomes 0, and 0 becomes 1.',
+                    'NAND': 'Universal Gate. Opposite of AND. Outputs 0 ONLY if ALL inputs are 1.',
+                    'NOR': 'Universal Gate. Opposite of OR. Outputs 1 ONLY if ALL inputs are 0.',
+                    'XOR': 'Exclusive OR. Outputs 1 if inputs are DIFFERENT (e.g. 1 and 0).',
+                    'XNOR': 'Exclusive NOR. Outputs 1 if inputs are the SAME.',
+                    'BUFFER': 'Passes the signal unchanged. Used to delay signals or boost current.'
+                };
+                return expl[type] || 'Standard Logic Component.';
+            }
+
+            generateTruthTable() {
+                const inputs = Array.from(this.engine.nodes.values()).filter(n => n.type === 'INPUT');
+                const outputs = Array.from(this.engine.nodes.values()).filter(n => n.type === 'OUTPUT');
+                
+                if (inputs.length === 0 || outputs.length === 0) return null;
+                if (inputs.length > 5) return { error: "Too many inputs for automatic truth table (max 5 variables allowed)." };
+                
+                const savedStates = inputs.map(i => i.outputs[0]);
+                const rows = [];
+                const numCombos = Math.pow(2, inputs.length);
+                
+                for(let i = 0; i < numCombos; i++) {
+                    inputs.forEach((inp, idx) => {
+                        const bit = (i >> (inputs.length - 1 - idx)) & 1;
+                        inp.outputs[0] = bit;
+                        this.engine.enqueuePropagation(inp.id);
+                    });
+                    
+                    const oldUpdate = this.engine.onUpdate;
+                    this.engine.onUpdate = null; 
+                    this.engine.propagate();
+                    
+                    const inVals = inputs.map(inp => inp.outputs[0]);
+                    const outVals = outputs.map(out => out.currentValue);
+                    rows.push({ in: inVals, out: outVals });
+                }
+                
+                inputs.forEach((inp, idx) => {
+                    inp.outputs[0] = savedStates[idx];
+                    this.engine.enqueuePropagation(inp.id);
+                });
+                
+                const oldUpdate = this.engine.onUpdate;
+                this.engine.onUpdate = null;
+                this.engine.propagate();
+                this.engine.onUpdate = oldUpdate;
+                
+                return { inputs, outputs, rows };
+            }
+
+            generateSOP(ttData) {
+                if (!ttData || !ttData.rows) return {};
+                const sop = {}; 
+                
+                ttData.outputs.forEach((outNode, outIdx) => {
+                    let minterms = [];
+                    ttData.rows.forEach(row => {
+                        if (row.out[outIdx] === 1) {
+                            let term = [];
+                            row.in.forEach((val, inIdx) => {
+                                const designator = ttData.inputs[inIdx].designator;
+                                const varName = designator ? designator.replace('Input ', '') : `I${inIdx}`;
+                                term.push(val === 1 ? varName : `${varName}'`);
+                            });
+                            minterms.push(`${term.join('')}`);
+                        }
+                    });
+                    sop[outIdx] = minterms.length > 0 ? minterms.join(' + ') : '0';
+                });
+                return sop;
+            }
+
+            generateKMapHTML(ttData, outputIndex, outNode) {
+                const numVars = ttData.inputs.length;
+                if (numVars < 2 || numVars > 4) return `<p class="text-xs text-slate-500 mb-4">K-Map only supports 2, 3, or 4 variables.</p>`;
+                
+                const currentInputState = ttData.inputs.map(inp => inp.outputs[0]).join('');
+                
+                const labels = ttData.inputs.map((inp, i) => {
+                    return inp.designator ? inp.designator.replace('Input ', '') : `I${i}`;
+                });
+
+                let html = `<h4 class="text-sm font-semibold mt-4 mb-2 text-slate-300">K-Map for ${outNode.designator || 'Output'}</h4>`;
+                
+                const grayCode2 = [0, 1];
+                const grayCode4 = [0, 1, 3, 2];
+                let rowsGray, colsGray, rowVars, colVars;
+                
+                if (numVars === 2) {
+                    rowVars = [labels[0]]; colVars = [labels[1]];
+                    rowsGray = grayCode2; colsGray = grayCode2;
+                } else if (numVars === 3) {
+                    rowVars = [labels[0]]; colVars = [labels[1], labels[2]];
+                    rowsGray = grayCode2; colsGray = grayCode4;
+                } else if (numVars === 4) {
+                    rowVars = [labels[0], labels[1]]; colVars = [labels[2], labels[3]];
+                    rowsGray = grayCode4; colsGray = grayCode4;
+                }
+                
+                const padBin = (val, bits) => val.toString(2).padStart(bits, '0');
+                
+                html += `<div class="overflow-x-auto mb-6"><table class="kmap">`;
+                html += `<tr><th rowspan="2" colspan="2" class="border-none bg-slate-900"></th><th colspan="${colsGray.length}" class="text-blue-300">${colVars.join('')}</th></tr>`;
+                html += `<tr>`;
+                colsGray.forEach(c => html += `<th class="text-xs">${padBin(c, colVars.length)}</th>`);
+                html += `</tr>`;
+                
+                rowsGray.forEach((r, rIdx) => {
+                    html += `<tr>`;
+                    if (rIdx === 0) html += `<th rowspan="${rowsGray.length}" class="text-blue-300">${rowVars.join('')}</th>`;
+                    html += `<th class="text-xs">${padBin(r, rowVars.length)}</th>`;
+                    
+                    colsGray.forEach(c => {
+                        const fullBinStr = padBin(r, rowVars.length) + padBin(c, colVars.length);
+                        const ttRow = ttData.rows.find(row => row.in.join('') === fullBinStr);
+                        const cellVal = ttRow ? ttRow.out[outputIndex] : 0;
+                        let cellClass = cellVal === 1 ? 'active-cell ' : '';
+                        
+                        if (fullBinStr === currentInputState) {
+                            cellClass += 'ring-2 ring-inset ring-yellow-400 bg-yellow-900/60 font-bold shadow-[inset_0_0_12px_rgba(250,204,21,0.5)] relative z-10 ';
+                        }
+                        
+                        html += `<td class="${cellClass}">${cellVal}</td>`;
+                    });
+                    html += `</tr>`;
+                });
+                html += `</table></div>`;
+                return html;
+            }
+
+            updateEduPanel() {
+                const panel = document.getElementById('edu-content');
+                if (!panel) return;
+                
+                let html = '';
+
+                if (this.selectedNodeId) {
+                    const node = this.engine.nodes.get(this.selectedNodeId);
+                    if (node) {
+                        html += `
+                            <div class="mb-6 bg-slate-800/80 p-4 rounded-lg border border-slate-600 shadow-inner">
+                                <h3 class="text-md font-bold text-white mb-2 flex items-center gap-2">
+                                    <span class="bg-blue-500/20 text-blue-300 p-1 rounded">
+                                        ${this.getGateSVG(node.type)}
+                                    </span>
+                                    ${node.type} Component
+                                </h3>
+                                <p class="text-sm text-slate-300 leading-relaxed">${this.getGateExplanation(node.type)}</p>
+                            </div>
+                        `;
+                    }
+                } else {
+                    html += `<div class="mb-6 p-4 bg-slate-800/30 rounded-lg border border-slate-700 border-dashed text-sm text-slate-400 text-center">Click any component on the canvas to see its technical explanation here.</div>`;
+                }
+
+                const ttData = this.generateTruthTable();
+                
+                if (!ttData) {
+                    html += `<div class="text-center p-4 bg-slate-800/20 rounded border border-slate-700/50 text-slate-500 text-sm">Add at least one Input and one Output component to the canvas to view circuit analysis.</div>`;
+                    panel.innerHTML = html;
+                    return;
+                }
+                if (ttData.error) {
+                    html += `<div class="p-4 bg-red-900/20 border border-red-900/50 rounded text-red-400 text-sm">${ttData.error}</div>`;
+                    panel.innerHTML = html;
+                    return;
+                }
+
+                html += `<h3 class="text-md font-bold text-white mb-3 border-b border-slate-700 pb-2">Truth Table</h3>`;
+                html += `<div class="overflow-x-auto mb-6 rounded border border-slate-700"><table class="ttable"><thead><tr>`;
+                
+                ttData.inputs.forEach((inp, i) => {
+                    const dsgn = inp.designator || `In ${i}`;
+                    const lbl = inp.label ? `<br/><span class="text-[9px] font-normal text-slate-400 leading-tight block mt-1">${inp.label}</span>` : '';
+                    html += `<th>${dsgn}${lbl}</th>`;
+                });
+                
+                ttData.outputs.forEach((out, i) => {
+                    const dsgn = out.designator || `Out ${i}`;
+                    const lbl = out.label ? `<br/><span class="text-[9px] font-normal text-blue-400/70 leading-tight block mt-1">${out.label}</span>` : '';
+                    html += `<th class="text-blue-300">${dsgn}${lbl}</th>`;
+                });
+                
+                html += `</tr></thead><tbody>`;
+                
+                const currentInputState = ttData.inputs.map(inp => inp.outputs[0]).join('');
+                
+                ttData.rows.forEach(row => {
+                    const isCurrentRow = row.in.join('') === currentInputState;
+                    const rowClass = isCurrentRow ? 'bg-slate-700/80 shadow-inner ring-1 ring-yellow-500/50' : '';
+                    
+                    html += `<tr class="${rowClass}">`;
+                    row.in.forEach(val => html += `<td class="${isCurrentRow ? 'text-yellow-400 font-bold' : ''}">${val}</td>`);
+                    row.out.forEach(val => html += `<td class="font-bold ${val === 1 ? 'text-green-400' : 'text-slate-500'}">${val}</td>`);
+                    html += `</tr>`;
+                });
+                html += `</tbody></table></div>`;
+
+                html += `<h3 class="text-md font-bold text-white mb-3 border-b border-slate-700 pb-2">Boolean Expressions (SOP)</h3>`;
+                const sops = this.generateSOP(ttData);
+                html += `<div class="mb-6 flex flex-col gap-3">`;
+                ttData.outputs.forEach((out, i) => {
+                    html += `<div class="bg-slate-950 p-3 rounded-lg text-sm font-mono text-green-400 border border-slate-700 shadow-inner break-words">
+                        <span class="text-slate-500 select-none">${out.designator || `Out ${i}`} =</span> <br/> ${sops[i]}
+                    </div>`;
+                });
+                html += `</div>`;
+
+                if (ttData.inputs.length >= 2 && ttData.inputs.length <= 4) {
+                    html += `<h3 class="text-md font-bold text-white mb-3 border-b border-slate-700 pb-2">Karnaugh Maps</h3>`;
+                    ttData.outputs.forEach((out, i) => {
+                        html += this.generateKMapHTML(ttData, i, out);
+                    });
+                }
+
+                panel.innerHTML = html;
+            }
+
+            getGateSVG(type) {
+                const baseClass = "w-6 h-6 text-blue-400 stroke-2";
+                switch(type) {
+                    case 'AND': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><path d="M6,6 L16,6 A10,10 0 0,1 16,26 L6,26 Z"/><path d="M2,10 L6,10 M2,22 L6,22 M26,16 L30,16"/></svg>`;
+                    case 'OR': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><path d="M6,6 Q14,16 6,26 Q22,26 28,16 Q22,6 6,6 Z"/><path d="M2,10 L8,10 M2,22 L8,22 M28,16 L32,16"/></svg>`;
+                    case 'NOT': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><polygon points="6,6 6,26 22,16"/><circle cx="25" cy="16" r="3"/><path d="M2,16 L6,16 M28,16 L32,16"/></svg>`;
+                    case 'NAND': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><path d="M6,6 L14,6 A10,10 0 0,1 14,26 L6,26 Z"/><circle cx="27" cy="16" r="3"/><path d="M2,10 L6,10 M2,22 L6,22 M30,16 L32,16"/></svg>`;
+                    case 'NOR': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><path d="M6,6 Q14,16 6,26 Q20,26 25,16 Q20,6 6,6 Z"/><circle cx="28" cy="16" r="3"/><path d="M2,10 L8,10 M2,22 L8,22 M31,16 L32,16"/></svg>`;
+                    case 'XOR': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><path d="M10,6 Q18,16 10,26 Q26,26 30,16 Q26,6 10,6 Z"/><path d="M6,6 Q14,16 6,26"/><path d="M2,10 L8,10 M2,22 L8,22"/></svg>`;
+                    case 'XNOR': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><path d="M8,6 Q16,16 8,26 Q22,26 26,16 Q22,6 8,6 Z"/><path d="M4,6 Q12,16 4,26"/><circle cx="29" cy="16" r="3"/><path d="M2,10 L6,10 M2,22 L6,22"/></svg>`;
+                    case 'BUFFER': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><polygon points="8,6 8,26 26,16"/><path d="M2,16 L8,16 M26,16 L32,16"/></svg>`;
+                    case 'INPUT': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><rect x="6" y="10" width="12" height="12" rx="2"/><path d="M18,16 L30,16"/></svg>`;
+                    case 'OUTPUT': return `<svg class="${baseClass}" viewBox="0 0 32 32" fill="none" stroke="currentColor"><circle cx="16" cy="16" r="8"/><path d="M2,16 L8,16"/></svg>`;
+                    default: return `<svg class="${baseClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+                }
+            }
+
+            changeInputCount(nodeId, delta) {
+                const node = this.engine.nodes.get(nodeId);
+                if (!node) return;
+
+                const newCount = node.inputCount + delta;
+                if (newCount < 2 || newCount > 8) return; 
+
+                if (delta < 0) {
+                    for (let i = newCount; i < node.inputCount; i++) {
+                        this.engine.removeEdgeByTarget(nodeId, i);
+                    }
+                    node.inputs = node.inputs.slice(0, newCount);
+                } else {
+                    for (let i = node.inputCount; i < newCount; i++) {
+                        node.inputs.push(null);
+                    }
+                }
+
+                node.inputCount = newCount;
+                node.height = Math.max(40, Math.max(node.inputCount, node.outputCount) * 20 + 20);
+
+                const changed = node.evaluate();
+                if (changed) {
+                    this.engine.enqueuePropagation(nodeId);
+                    this.engine.propagate();
+                }
+
+                this.updateInspector();
+                this.engine.triggerUpdate();
+            }
+
+            updateInspector() {
+                const content = document.getElementById('inspector-content');
+                if (!this.selectedNodeId) {
+                    content.innerHTML = 'Select a node to inspect.';
+                    return;
+                }
+                
+                const node = this.engine.nodes.get(this.selectedNodeId);
+                if (!node) return;
+
+                let html = `
+                    <div class="mb-4 flex items-center gap-4 bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 shadow-inner">
+                        <div class="flex-shrink-0 bg-slate-800 rounded p-2 shadow flex items-center justify-center">
+                            ${this.getGateSVG(node.type)}
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Type</label>
+                            <div class="text-slate-200 font-bold text-base">${node.designator || node.type}</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="block text-xs text-slate-500 mb-1">Semantic Label (Optional)</label>
+                        <input type="text" value="${node.label || ''}" placeholder="e.g. Handbrake"
+                               onchange="app.updateNodeLabel('${node.id}', this.value)"
+                               class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-blue-500">
+                    </div>
+                `;
+
+                const adjustableGates = ['AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR'];
+                if (adjustableGates.includes(node.type)) {
+                    html += `
+                        <div class="mb-3">
+                            <label class="block text-xs text-slate-500 mb-1">Number of Inputs</label>
+                            <div class="flex items-center gap-2">
+                                <button onclick="app.changeInputCount('${node.id}', -1)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 border border-slate-700 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors" ${node.inputCount <= 2 ? 'disabled' : ''}>
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+                                </button>
+                                <span class="text-sm font-mono text-slate-200 w-6 text-center">${node.inputCount}</span>
+                                <button onclick="app.changeInputCount('${node.id}', 1)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 border border-slate-700 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition-colors" ${node.inputCount >= 8 ? 'disabled' : ''}>
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `<div class="mt-4 border-t border-slate-700 pt-3">
+                            <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase">Connections</label>
+                            <div class="space-y-1">`;
+                
+                let hasConnections = false;
+
+                for (let [sourceId, edges] of this.engine.adjacencyList.entries()) {
+                    edges.forEach(e => {
+                        if (e.targetNodeId === node.id) {
+                            hasConnections = true;
+                            const srcNode = this.engine.nodes.get(sourceId);
+                            const srcName = srcNode.designator || srcNode.type;
+                            html += `<div class="flex items-center justify-between bg-slate-900 p-1.5 rounded border border-slate-700/50">
+                                <span class="text-[11px] text-slate-400 truncate w-32">From: ${srcName} (Port ${e.targetPortIndex + 1})</span>
+                                <button onclick="app.disconnectWire('${sourceId}', '${node.id}', ${e.targetPortIndex})" class="text-red-400 hover:text-red-300 px-1 hover:bg-red-900/30 rounded" title="Remove Wire">✕</button>
+                            </div>`;
+                        }
+                    });
+                }
+                
+                const outEdges = this.engine.adjacencyList.get(node.id) || [];
+                outEdges.forEach(e => {
+                    hasConnections = true;
+                    const tgtNode = this.engine.nodes.get(e.targetNodeId);
+                    const tgtName = tgtNode.designator || tgtNode.type;
+                    html += `<div class="flex items-center justify-between bg-slate-900 p-1.5 rounded border border-slate-700/50">
+                        <span class="text-[11px] text-slate-400 truncate w-32">To: ${tgtName}</span>
+                        <button onclick="app.disconnectWire('${node.id}', '${tgtNode.id}', ${e.targetPortIndex})" class="text-red-400 hover:text-red-300 px-1 hover:bg-red-900/30 rounded" title="Remove Wire">✕</button>
+                    </div>`;
+                });
+
+                if(!hasConnections) html += `<div class="text-xs text-slate-600 italic">No connections.</div>`;
+                
+                html += `</div></div>`;
+                
+                html += `<div class="mt-4 pt-4 border-t border-slate-700/50">
+                            <button onclick="app.deleteSelectedNode()" class="w-full bg-red-900/20 hover:bg-red-800/40 text-red-400 transition-colors p-2 rounded border border-red-900/50 text-xs font-semibold flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                Delete Component
+                            </button>
+                        </div>`;
+
+                content.innerHTML = html;
+            }
+
+            disconnectWire(sourceId, targetId, targetPort) {
+                this.engine.removeEdge(sourceId, targetId, targetPort);
+            }
+
+            recalculateNodeSize(node) {
+                this.ctx.save();
+                this.ctx.font = 'bold 12px Inter'; 
+                
+                const typeWidth = this.ctx.measureText(node.designator || node.type).width;
+                let labelWidth = 0;
+                
+                if (node.label) {
+                    labelWidth = this.ctx.measureText(node.label).width;
+                }
+                
+                const maxTextWidth = Math.max(typeWidth, labelWidth);
+                const minWidth = (node.type === 'INPUT' || node.type === 'OUTPUT') ? 60 : 80;
+                
+                node.width = Math.max(minWidth, maxTextWidth + 40); 
+                this.ctx.restore();
+            }
+
+            updateNodeLabel(id, label) {
+                const n = this.engine.nodes.get(id);
+                if(n) {
+                    n.label = label;
+                    this.recalculateNodeSize(n);
+                    if (this.eduMode) this.updateEduPanel();
+                    this.updateInspector();
+                }
+            }
+
+            renderLoop(timestamp) {
+                this.frames++;
+                if (timestamp - this.lastTime >= 1000) {
+                    document.getElementById('fps-counter').innerText = `${this.frames} FPS`;
+                    this.frames = 0;
+                    this.lastTime = timestamp;
+                }
+
+                this.ctx.fillStyle = '#020617'; 
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                this.ctx.save();
+                this.ctx.translate(this.transform.x, this.transform.y);
+                this.ctx.scale(this.transform.k, this.transform.k);
+
+                this.drawGrid();
+                this.drawEdges();
+                
+                if (this.wiringMode && this.wiringStart) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.wiringStart.x, this.wiringStart.y);
+                    this.ctx.lineTo(this.mouseWorldPos.x, this.mouseWorldPos.y);
+                    this.ctx.strokeStyle = '#475569';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                }
+
+                for (let node of this.engine.nodes.values()) {
+                    this.drawNode(node);
+                }
+
+                this.ctx.restore();
+                requestAnimationFrame((t) => this.renderLoop(t));
+            }
+
+            drawGrid() {
+                const gridSize = 40;
+                const canvasW = this.canvas.width / this.transform.k;
+                const canvasH = this.canvas.height / this.transform.k;
+                const offsetX = -this.transform.x / this.transform.k;
+                const offsetY = -this.transform.y / this.transform.k;
+
+                this.ctx.strokeStyle = '#1e293b';
+                this.ctx.lineWidth = 1 / this.transform.k;
+                this.ctx.beginPath();
+
+                for (let x = offsetX - (offsetX % gridSize); x < offsetX + canvasW; x += gridSize) {
+                    this.ctx.moveTo(x, offsetY); this.ctx.lineTo(x, offsetY + canvasH);
+                }
+                for (let y = offsetY - (offsetY % gridSize); y < offsetY + canvasH; y += gridSize) {
+                    this.ctx.moveTo(offsetX, y); this.ctx.lineTo(offsetX + canvasW, y);
+                }
+                this.ctx.stroke();
+            }
+
+            drawEdges() {
+                for (let [sourceId, edges] of this.engine.adjacencyList.entries()) {
+                    const sourceNode = this.engine.nodes.get(sourceId);
+                    if (!sourceNode) continue;
+
+                    edges.forEach(edge => {
+                        const targetNode = this.engine.nodes.get(edge.targetNodeId);
+                        if (!targetNode) return;
+
+                        const val = sourceNode.outputs[edge.sourcePortIndex];
+                        const startX = sourceNode.x + sourceNode.width;
+                        const startY = sourceNode.y + (sourceNode.height / (sourceNode.outputCount + 1)) * (edge.sourcePortIndex + 1);
+                        const endX = targetNode.x;
+                        const endY = targetNode.y + (targetNode.height / (targetNode.inputCount + 1)) * (edge.targetPortIndex + 1);
+
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(startX, startY);
+                        this.ctx.bezierCurveTo(startX + 50, startY, endX - 50, endY, endX, endY);
+                        
+                        this.ctx.strokeStyle = val === 1 ? '#22c55e' : '#475569';
+                        this.ctx.lineWidth = 3;
+                        this.ctx.stroke();
+                    });
+                }
+            }
+
+            drawNode(node) {
+                const isSelected = this.selectedNodeId === node.id;
+                
+                this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                this.ctx.shadowBlur = 10;
+                this.ctx.shadowOffsetY = 4;
+
+                this.ctx.fillStyle = isSelected ? '#1e293b' : '#0f172a';
+                this.ctx.strokeStyle = isSelected ? '#3b82f6' : '#334155';
+                this.ctx.lineWidth = 2;
+                
+                this.ctx.beginPath();
+                this.ctx.roundRect(node.x, node.y, node.width, node.height, 8);
+                this.ctx.fill();
+                this.ctx.stroke();
+                
+                this.ctx.shadowColor = 'transparent';
+
+                this.ctx.fillStyle = '#94a3b8';
+                this.ctx.font = '10px Inter';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(node.designator || node.type, node.x + node.width/2, node.y + 12);
+                
+                if(node.label) {
+                    this.ctx.fillStyle = '#f8fafc';
+                    this.ctx.font = 'bold 12px Inter';
+                    this.ctx.fillText(node.label, node.x + node.width/2, node.y + 26);
+                }
+
+                if (node.type === 'INPUT' || node.type === 'OUTPUT') {
+                    const val = node.type === 'INPUT' ? node.outputs[0] : node.currentValue;
+                    this.ctx.fillStyle = val === 1 ? '#4ade80' : '#64748b';
+                    this.ctx.font = 'bold 14px Fira Code';
+                    this.ctx.textAlign = 'right';
+                    this.ctx.textBaseline = 'bottom';
+                    this.ctx.fillText(val, node.x + node.width - 6, node.y + node.height - 4);
+                    
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                }
+
+                this.ctx.fillStyle = '#1e293b';
+                this.ctx.strokeStyle = '#64748b';
+                this.ctx.lineWidth = 1.5;
+
+                for (let i = 0; i < node.inputCount; i++) {
+                    const py = node.y + (node.height / (node.inputCount + 1)) * (i + 1);
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, py, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.stroke();
+                }
+
+                for (let i = 0; i < node.outputCount; i++) {
+                    const py = node.y + (node.height / (node.outputCount + 1)) * (i + 1);
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x + node.width, py, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.stroke();
+                }
+            }
+        }
+
+        const app = new AppRenderer();
+        window.app = app; 
+
+    </script>
+</body>
+</html>
