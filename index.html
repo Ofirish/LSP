@@ -570,6 +570,18 @@
 
                 const zoom = d3.zoom()
                     .scaleExtent([0.1, 4])
+                    .filter((e) => {
+                        // Standard D3 default filter (ignores right clicks, handles ctrl+wheel)
+                        if (e.ctrlKey && e.type !== 'wheel') return false;
+                        if (e.button && e.button !== 0 && e.type !== 'wheel') return false;
+                        
+                        // Custom Logic: If interacting with a node or port, intercept it so D3 does not pan!
+                        if (e.type === 'pointerdown' || e.type === 'mousedown' || e.type === 'touchstart') {
+                            const pos = this.getEventPos(e);
+                            if (this.hitTest(pos.x, pos.y)) return false; 
+                        }
+                        return true;
+                    })
                     .on('zoom', (e) => {
                         this.transform = e.transform;
                     });
@@ -976,28 +988,42 @@
             }
 
             // --- RESPONSIVE EVENTS (POINTERS & TOUCH) ---
+            getEventPos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                let clientX = e.clientX;
+                let clientY = e.clientY;
+                
+                // Fallback for native touch events if pointers are spoofed
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                }
+                
+                // Map screen coordinates into D3 canvas world space
+                return {
+                    x: (clientX - rect.left - this.transform.x) / this.transform.k,
+                    y: (clientY - rect.top - this.transform.y) / this.transform.k
+                };
+            }
+
             setupEvents() {
                 let draggingNode = false;
-
-                const getEventPos = (e) => {
-                    const rect = this.canvas.getBoundingClientRect();
-                    // clientX is always in CSS pixels, perfect match for D3's transform
-                    return {
-                        x: (e.clientX - rect.left - this.transform.x) / this.transform.k,
-                        y: (e.clientY - rect.top - this.transform.y) / this.transform.k
-                    };
-                };
 
                 this.canvas.addEventListener('pointerdown', (e) => {
                     // Left click or touch only
                     if(e.button !== 0 && e.pointerType === 'mouse') return; 
                     
-                    this.hideContextMenu(); // dismiss any open menus
-                    const pos = getEventPos(e);
+                    this.hideContextMenu(); 
+                    
+                    const pos = this.getEventPos(e);
                     const hit = this.hitTest(pos.x, pos.y);
 
                     if (hit) {
-                        e.stopImmediatePropagation(); // Block D3 panning 
+                        e.stopImmediatePropagation(); // Block deeper DOM bubbling
+                        
+                        // UX Fix: Capture pointer id so if cursor slides out of canvas while dragging/wiring, it holds state!
+                        this.canvas.setPointerCapture(e.pointerId); 
+                        
                         if (hit.type === 'port') {
                             this.wiringMode = true;
                             this.wiringStart = hit;
@@ -1018,13 +1044,13 @@
                 });
 
                 this.canvas.addEventListener('pointermove', (e) => {
-                    this.mouseWorldPos = getEventPos(e);
+                    this.mouseWorldPos = this.getEventPos(e);
                     
                     if (this.pressStartPos) {
                         const dx = e.clientX - this.pressStartPos.screenX;
                         const dy = e.clientY - this.pressStartPos.screenY;
                         if (Math.hypot(dx, dy) > 10) { 
-                            clearTimeout(this.longPressTimer); // User is dragging, cancel long press
+                            clearTimeout(this.longPressTimer); // User is dragging, cancel long press popups
                         }
                     }
 
@@ -1035,12 +1061,17 @@
                     }
                 });
 
-                window.addEventListener('pointerup', (e) => {
+                this.canvas.addEventListener('pointerup', (e) => {
                     if (this.longPressTimer) clearTimeout(this.longPressTimer);
                     this.pressStartPos = null;
                     
+                    // UX Fix: Gracefully release the lock to the canvas frame
+                    if (this.canvas.hasPointerCapture(e.pointerId)) {
+                        this.canvas.releasePointerCapture(e.pointerId);
+                    }
+                    
                     if (this.wiringMode && this.wiringStart) {
-                        const pos = getEventPos(e);
+                        const pos = this.getEventPos(e);
                         const hit = this.hitTest(pos.x, pos.y);
                         
                         if (hit && hit.type === 'port' && hit.node.id !== this.wiringStart.node.id) {
@@ -1051,6 +1082,7 @@
                             }
                         }
                     }
+                    
                     this.wiringMode = false;
                     this.wiringStart = null;
                     draggingNode = false;
@@ -1058,7 +1090,7 @@
 
                 // Preserve double-click for desktop users
                 this.canvas.addEventListener('dblclick', (e) => {
-                    const pos = getEventPos(e);
+                    const pos = this.getEventPos(e);
                     const hit = this.hitTest(pos.x, pos.y);
                     if (hit && hit.type === 'node' && hit.node.type === 'INPUT') {
                         this.engine.toggleInput(hit.node.id);
@@ -1093,6 +1125,18 @@
                     };
                     menu.appendChild(toggleBtn);
                 }
+
+                // Rename Action Option
+                const renameBtn = document.createElement('button');
+                renameBtn.className = 'w-full text-left px-4 py-3 hover:bg-slate-700 text-blue-400 transition-colors flex items-center gap-2 border-t border-slate-700';
+                renameBtn.innerHTML = '✏️ Rename Label';
+                renameBtn.onclick = () => {
+                    this.hideContextMenu();
+                    this.showInputModal(`Rename ${node.designator || node.type}`, "Enter semantic label:", (newLabel) => {
+                        this.updateNodeLabel(node.id, newLabel);
+                    });
+                };
+                menu.appendChild(renameBtn);
 
                 const delBtn = document.createElement('button');
                 delBtn.className = 'w-full text-left px-4 py-3 hover:bg-red-900/50 text-red-400 transition-colors flex items-center gap-2 border-t border-slate-700';
